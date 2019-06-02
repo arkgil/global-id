@@ -24,8 +24,8 @@ defmodule GlobalId do
   Including the node ID as one of the components of the global ID ensures that each worker node
   generates its own, distinct set of identifiers. Inclusion of timestamp allows us to generate a
   unique set of IDs each millisecond. The counter is used to make sure that IDs generated using the
-  same timestamps are indeed different. I recommend to read the code comments now, starting from
-  `get_id/0` and follow along the code.
+  same timestamps are different. I recommend to read the code comments now, starting from `get_id/0`
+  and following along the code.
 
   ## Discussion
 
@@ -38,10 +38,10 @@ defmodule GlobalId do
   Interesting thing is that we could get rid off the timestamp at all and use a simple logical clock
   (basically a bigger counter) if not the possibility of the node crashes. When the node starts up,
   it fetches the last timestamp from the system clock. Assuming that the clock doesn't drift in the
-  past too much, the IDs we generate after the node crash are still unique. However, if the clock
-  is unreliable, we might generate a couple of the same IDs (this scenario is covered by test
-  cases in `test/global_id_test.exs`). If we were to solve this problem completely, we would need to
-  have really well synchronized clocks (a.k.a. the Google Spanner solution), or persits the last
+  past, the IDs we generate after the node crash are still unique. However, if the clock is unreliable,
+  we might generate a couple of the same IDs (this scenario is covered by test cases in
+  `test/global_id_test.exs`). If we were to solve this problem completely, we would need to have
+  really well synchronized clocks (a.k.a. the Google Spanner solution), or persist the last
   timestamp used by the worker node somewhere and retrieve it from that storage after a node crash.
   However, the solution implemented here requires no coordination at all (at least from the
   worker node's code perspective, the clocks between the machines are still synchronized somehow)
@@ -73,7 +73,7 @@ defmodule GlobalId do
   ### How do you manage uniqueness after the entire system fails and restarts?
 
   Since there is no coordination between the nodes, failure of the whole system is roughly equivalent
-  to the failure of all nodes individually. Since each worker node generates a distinct set od IDs,
+  to the failure of all nodes individually. Since each worker node generates a distinct set of IDs,
   and we preserve uniqueness after the node crashes (see paragraph above), then after all the nodes
   restart and crash, the uniqueness of IDs won't be violated (again, assuming the the system clocks
   are roughly monotonic).
@@ -187,6 +187,10 @@ defmodule GlobalId do
   @spec get_new_timestamp_and_counter(ts :: non_neg_integer(), last_ts :: non_neg_integer()) ::
           {new_ts :: non_neg_integer(), new_counter :: non_neg_integer()}
   defp get_new_timestamp_and_counter(timestamp, last_timestamp) do
+    # The idea here is that first request each millisecond uses the counter value of 0. The second
+    # one - 1, the third one - 2, etc., up to 4095. When we generate 4096 IDs with the same timestamp,
+    # we need to wait until the clock advances to the next timestamp.
+
     # If the current timestamp is greater than the timestamp used to generated the last ID, we can
     # start counting from 0 again.
     if timestamp > last_timestamp do
@@ -199,8 +203,8 @@ defmodule GlobalId do
       # only 12 bits for the counter, meaning that we can generate 4096 unique IDs per millisecond.
       counter = band(get_counter() + 1, 4095)
 
-      # If the counter is 0 after incrementing, it means that it has wrapped. We can't use 0 again
-      # because such ID has already been generated with the last timestamp.
+      # If the counter is 0 after incrementing, it means that it has wrapped at 4096. We can't
+      # generate any more IDs with current timestamp.
       if counter == 0 do
         # We just need to wait until the current timestamp is greater than the last timestamp used
         # and start counting from 0 again.
