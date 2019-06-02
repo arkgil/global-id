@@ -83,9 +83,14 @@ defmodule GlobalIdTest do
   test "at most 4096 unique IDs can be generated during one millisecond" do
     move_time(1)
 
-    for _ <- 1..4096 do
-      assert {:ok, _} = get_id()
-    end
+    set =
+      for _ <- 1..4096, reduce: MapSet.new() do
+        set ->
+          assert {:ok, id} = get_id()
+          MapSet.put(set, id)
+      end
+
+    assert MapSet.size(set) == 4096
 
     assert :timeout = get_id()
     move_time(1)
