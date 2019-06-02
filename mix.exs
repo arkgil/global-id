@@ -7,7 +7,8 @@ defmodule GlobalId.MixProject do
       version: "0.1.0",
       elixir: "~> 1.8",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      aliases: aliases()
     ]
   end
 
@@ -19,7 +20,12 @@ defmodule GlobalId.MixProject do
 
   defp deps do
     [
-      {:meck, "~> 0.8", only: :test}
+      {:meck, "~> 0.8", only: :test},
+      {:benchee, "~> 1.0", only: :prod}
     ]
+  end
+
+  defp aliases do
+    [bench: "run bench.exs"]
   end
 end
